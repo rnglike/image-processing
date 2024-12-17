@@ -1,4 +1,6 @@
 import PIL
+import PIL.Image
+import numpy as np
 import matplotlib.pyplot as plt
 
 # Return black and white image
@@ -107,3 +109,80 @@ def img_to_list(im):
         for y in range(H):
             map.append(pixels[x,y])
     return map
+
+def kernel_apply(im, kernel, operation):
+
+    pixels = im.load()
+    W, H = im.size
+    kernel_size = kernel.shape[0]
+    new_pixels = np.zeros((W, H))
+
+    if kernel_size//2 == kernel_size/2:
+        raise ValueError('Kernel size must be odd')
+
+    for x in range(W):
+        for y in range(H):
+
+            offset = kernel_size//2
+            mx = x + offset
+            my = y + offset
+
+            if mx > (W-1) - offset or my > (H-1) - offset:
+                break
+
+            window = np.zeros((kernel_size, kernel_size))
+            for i in range(kernel_size):
+                for j in range(kernel_size):
+                        
+                    wx = x + i
+                    wy = y + j
+                    window[i, j] = pixels[wx, wy]
+
+            px = pixels[mx, my]
+
+            match operation:
+                case 'filter':
+
+                    px = np.sum(window * kernel)
+                    px = np.max([0, np.min([255, px])]) # thresholding
+
+                case 'morphological':
+
+                    # check if kernel is binary
+                    if not np.all((kernel == 0) | (kernel == 1)):
+                        raise ValueError('Kernel must be binary')
+
+                    # check if smallest window value is 0 or largest is 255
+                    if np.min(window) < 0 or np.max(window) > 255:
+                        raise ValueError('Window must be binary')
+
+                    px = 0
+                    # check if window is a match
+                    if np.all(window*kernel == kernel*255):
+                        px = 255
+    
+            new_pixels[mx, my] = px
+            
+    new_pixels = np.transpose(new_pixels)
+    im = PIL.Image.fromarray(new_pixels)
+    return im
+
+def erosion_mask(size, format='square'):
+    
+    match format:
+
+        case 'square':
+            mask = np.ones((size, size))
+        case 'cross':
+            mask = np.zeros((size, size))
+            for i in range(size):
+                mask[i, size//2] = 1
+                mask[size//2, i] = 1
+        case 'circle':
+            mask = np.zeros((size, size))
+            for i in range(size):
+                for j in range(size):
+                    if (i-size//2)**2 + (j-size//2)**2 <= (size//2)**2:
+                        mask[i, j] = 1
+                        
+    return mask
